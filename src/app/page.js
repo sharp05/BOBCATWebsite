@@ -1,65 +1,147 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
+import Header from "./components/Header";
+import Hero from "./components/Hero";
+import DeliveryQueue from "./components/DeliveryQueue";
+import RequestModal from "./components/RequestModal";
+import { ROBOT_ROUTE, MOVE_INTERVAL_MS, SPEED_KMH } from "./config";
+
+// Dynamic import for CampusMap to avoid SSR issues with Leaflet
+const CampusMap = dynamic(() => import("./components/CampusMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[500px] bg-[var(--bg-secondary)] flex items-center justify-center">
+      <p className="text-slate-500">Loading map…</p>
+    </div>
+  ),
+});
 
 export default function Home() {
+  const [robotIdx, setRobotIdx] = useState(0);
+  const [deliveries, setDeliveries] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [completedToday, setCompletedToday] = useState(0);
+  const [nextQueueNum, setNextQueueNum] = useState(1);
+
+  // Robot simulation — advance position every interval
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRobotIdx((prev) => (prev + 1) % ROBOT_ROUTE.length);
+    }, MOVE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-advance delivery statuses based on robot position
+  useEffect(() => {
+    setDeliveries((prev) => {
+      let changed = false;
+      const updated = prev.map((d) => {
+        if (d.status === "pending" && !prev.some((x) => x.status === "transit")) {
+          changed = true;
+          return { ...d, status: "transit" };
+        }
+        if (d.status === "transit") {
+          const dist = haversineKm(
+            ROBOT_ROUTE[robotIdx][0], ROBOT_ROUTE[robotIdx][1],
+            d.dropoffLatLng[0], d.dropoffLatLng[1]
+          );
+          if (dist < 0.03) {
+            changed = true;
+            setCompletedToday((c) => c + 1);
+            return { ...d, status: "delivered" };
+          }
+        }
+        return d;
+      });
+      return changed ? updated : prev;
+    });
+  }, [robotIdx]);
+
+  // Compute stats
+  const activeCount = deliveries.filter((d) => d.status !== "delivered").length;
+  const activeDelivery = deliveries.find((d) => d.status === "transit");
+
+  let etaText = "No deliveries";
+  let robotStatus = "Idle";
+
+  if (activeDelivery) {
+    const dist = haversineKm(
+      ROBOT_ROUTE[robotIdx][0], ROBOT_ROUTE[robotIdx][1],
+      activeDelivery.dropoffLatLng[0], activeDelivery.dropoffLatLng[1]
+    );
+    const mins = Math.max(1, Math.round(dist / (SPEED_KMH / 60)));
+    etaText = `~${mins} min`;
+    robotStatus = "In Transit";
+  } else if (deliveries.some((d) => d.status === "pending")) {
+    etaText = "Queued";
+    robotStatus = "Pending Pickup";
+  }
+
+  const nextEtaDisplay =
+    activeDelivery
+      ? etaText
+      : deliveries.some((d) => d.status === "pending")
+      ? "Soon"
+      : "--";
+
+  function handleSubmit(data) {
+    const newDelivery = {
+      id: "del-" + Date.now(),
+      queueNum: nextQueueNum,
+      name: data.name,
+      pickupName: data.pickupName,
+      dropoffName: data.dropoffName,
+      pickupLatLng: data.pickupLatLng,
+      dropoffLatLng: data.dropoffLatLng,
+      code: data.code,
+      status: "pending",
+    };
+    setDeliveries((prev) => [...prev, newDelivery]);
+    setNextQueueNum((n) => n + 1);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      <Header onRequestPickup={() => setModalOpen(true)} />
+      <main>
+        <Hero
+          activeCount={activeCount}
+          completedCount={completedToday}
+          nextEta={nextEtaDisplay}
+          onRequestPickup={() => setModalOpen(true)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+        <CampusMap
+          robotPosition={ROBOT_ROUTE[robotIdx]}
+          etaText={etaText}
+          robotStatus={robotStatus}
+        />
+        <DeliveryQueue
+          deliveries={deliveries}
+          onRequestPickup={() => setModalOpen(true)}
+        />
       </main>
-    </div>
+      <footer className="text-center py-10 border-t border-white/[0.08] text-slate-500 text-sm">
+        © 2026 CampusBot Delivery · UC Merced · Built for the future of autonomous delivery.
+      </footer>
+      <RequestModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
+    </>
   );
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
