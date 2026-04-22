@@ -4,7 +4,7 @@ export const MAP_ZOOM = 16;
 
 export const WAYPOINTS = [
   // ─── Pickup Zones (campus/academic buildings) ───
-  { id: "p1", name: "Kolligian Library",                type: "pickup",  latlng: [37.36620, -120.42460] },
+  { id: "p1", name: "Kolligian Library",                type: "pickup",  latlng: [37.36589, -120.42460] },
   { id: "p2", name: "Student Activities & Rec Center",  type: "pickup",  latlng: [37.36504, -120.42611] },
   { id: "p3", name: "Yablokoff-Wallace Dining Center",  type: "pickup",  latlng: [37.36420, -120.42705] },
   { id: "p4", name: "Science & Engineering (S&E)",      type: "pickup",  latlng: [37.36601, -120.42195] },
@@ -13,7 +13,7 @@ export const WAYPOINTS = [
 
   // ─── Drop-off Zones (housing & hubs) ───
   { id: "d1", name: "Sierra Terraces Housing",          type: "dropoff", latlng: [37.36529, -120.42737] },
-  { id: "d2", name: "Valley Terraces Housing",          type: "dropoff", latlng: [37.36273, -120.42796] },
+  { id: "d2", name: "Valley Terraces Housing",          type: "dropoff", latlng: [37.36374, -120.42794] },
   { id: "d4", name: "Glacier Point Housing",            type: "dropoff", latlng: [37.36338, -120.42486] },
   { id: "d5", name: "The Summits Housing",              type: "dropoff", latlng: [37.36371, -120.42988] },
 ];
